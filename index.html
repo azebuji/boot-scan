@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOOT SCAN :: Varredura Global</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+<!-- ============================================================
+  GOOGLE ADSENSE
+  1. Crie uma conta em https://adsense.google.com
+  2. Adicione o domínio onde o arquivo estará hospedado
+  3. Substitua  ca-pub-XXXXXXXXXXXXXXXX  pelo seu Publisher ID
+  4. Substitua  AAAAAAAAAA / BBBBBBBBBB / CCCCCCCCCC  pelos IDs
+     dos blocos de anúncio criados no painel do AdSense
+  Obs.: AdSense NÃO funciona em arquivo local (file://). O site
+        precisa estar hospedado em um domínio aprovado pelo Google.
+============================================================ -->
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
+<style>
+:root {
+  --bg: #080c14;
+  --bg2: #0b1220;
+  --card: #0f1a28;
+  --border: #182435;
+  --cyan: #00d4ff;
+  --green: #00ff88;
+  --red: #ff3355;
+  --orange: #ff8833;
+  --purple: #aa44ff;
+  --txt: #d8e8f0;
+  --muted: #5a7585;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--txt); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+/* ---- BOOT SCREEN ---- */
+#boot {
+  position: fixed; inset: 0; background: #000; z-index: 9999;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: 'Courier New', monospace; transition: opacity 0.8s;
+}
+#boot.out { opacity: 0; pointer-events: none; }
+.boot-logo {
+  font-size: clamp(1.8rem, 5vw, 3.2rem); font-weight: 900;
+  color: var(--cyan); letter-spacing: 0.3em;
+  text-shadow: 0 0 30px var(--cyan), 0 0 60px rgba(0,212,255,0.3);
+  margin-bottom: 2rem;
+}
+#blog { width: min(580px, 90vw); font-size: 0.78rem; color: #00ff88; max-height: 180px; overflow: hidden; }
+.bline { padding: 2px 0; animation: fi 0.05s forwards; opacity: 0; }
+@keyframes fi { to { opacity: 1; } }
+.bprog { width: min(580px, 90vw); height: 3px; background: #111; border-radius: 2px; margin-top: 1.2rem; overflow: hidden; }
+.bbar { height: 100%; background: var(--cyan); width: 0%; transition: width 0.15s; box-shadow: 0 0 8px var(--cyan); }
+
+/* ---- SCAN OVERLAY ---- */
+#scanover {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+  display: none; align-items: center; justify-content: center; z-index: 200;
+}
+#scanover.on { display: flex; }
+.scanbox { text-align: center; font-family: 'Courier New', monospace; }
+.ring {
+  width: 90px; height: 90px; border: 3px solid transparent;
+  border-top-color: var(--cyan); border-right-color: var(--cyan);
+  border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 1rem; position: relative;
+}
+.ring::after {
+  content: ''; position: absolute; inset: 6px;
+  border: 2px solid transparent; border-top-color: var(--green);
+  border-radius: 50%; animation: spin 0.5s linear infinite reverse;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#scanmsg { color: var(--cyan); font-size: 0.85rem; letter-spacing: 0.12em; margin-top: 0.5rem; }
+
+/* ---- HEADER ---- */
+header {
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  padding: 0.75rem 1rem; position: sticky; top: 0; z-index: 100;
+}
+.logo { font-family: 'Courier New', monospace; font-size: 1.4rem; font-weight: 900; color: var(--cyan); letter-spacing: 0.2em; animation: glitch 10s infinite; }
+.logosub { font-size: 0.65rem; color: var(--muted); letter-spacing: 0.25em; text-transform: uppercase; }
+@keyframes glitch {
+  0%,94%,100% { text-shadow: 0 0 10px var(--cyan); }
+  95% { text-shadow: -2px 0 red, 2px 0 cyan; }
+  96% { text-shadow: 2px 0 red, -2px 0 cyan; }
+  97% { text-shadow: 0 0 10px var(--cyan); }
+}
+.live { width: 8px; height: 8px; background: var(--green); border-radius: 50%; display: inline-block; animation: pg 1.5s infinite; }
+@keyframes pg { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: 0.6; } }
+
+/* ---- SEARCH ---- */
+.srch-wrap { max-width: 680px; margin: 0 auto; }
+.srch-wrap input {
+  background: var(--card) !important; border: 1px solid var(--border) !important;
+  color: var(--txt) !important; border-radius: 8px 0 0 8px !important;
+  padding: 0.7rem 1.2rem !important; font-size: 0.95rem;
+}
+.srch-wrap input:focus { border-color: var(--cyan) !important; box-shadow: 0 0 0 0.15rem rgba(0,212,255,0.2) !important; }
+.srch-wrap input::placeholder { color: var(--muted) !important; }
+.srch-wrap button {
+  background: var(--cyan) !important; border-color: var(--cyan) !important;
+  color: #000 !important; font-weight: 700; border-radius: 0 8px 8px 0 !important;
+  padding: 0.7rem 1.4rem !important; white-space: nowrap;
+}
+.srch-wrap button:hover { background: #00b8e0 !important; }
+.qtag { cursor: pointer; color: var(--cyan); font-size: 0.75rem; }
+.qtag:hover { text-decoration: underline; }
+
+/* ---- STATS BAR ---- */
+.sbar {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.45rem 0.9rem; font-size: 0.75rem; font-family: 'Courier New', monospace;
+  color: var(--muted); display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;
+}
+.sv { color: var(--cyan); font-weight: 700; }
+.dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 3px; }
+
+/* ---- FILTERS ---- */
+.ftab {
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+  padding: 0.35rem 0.9rem; border-radius: 20px; cursor: pointer; font-size: 0.8rem;
+  transition: all 0.2s; white-space: nowrap;
+}
+.ftab:hover { border-color: var(--cyan); color: var(--cyan); }
+.ftab.on { background: var(--cyan); border-color: var(--cyan); color: #000; font-weight: 700; }
+.ftab[data-f="reddit"].on { background: #ff4500; border-color: #ff4500; color: #fff; }
+.ftab[data-f="tech"].on { background: var(--orange); border-color: var(--orange); color: #000; }
+.ftab[data-f="media"].on { background: var(--purple); border-color: var(--purple); color: #fff; }
+.ftab[data-f="social"].on { background: #4285f4; border-color: #4285f4; color: #fff; }
+.ftab[data-f="anomaly"].on { background: var(--red); border-color: var(--red); color: #fff; }
+
+/* ---- CARDS ---- */
+.rcard {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  overflow: hidden; transition: transform 0.18s, border-color 0.18s, box-shadow 0.18s;
+  height: 100%; display: flex; flex-direction: column; position: relative;
+}
+.rcard:hover { transform: translateY(-2px); border-color: rgba(0,212,255,0.25); box-shadow: 0 4px 18px rgba(0,212,255,0.08); }
+.acc { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+.a-news { background: #2255cc; }
+.a-reddit { background: #ff4500; }
+.a-tech { background: var(--orange); }
+.a-social { background: #4285f4; }
+.a-anomaly { background: var(--red); animation: pa 1s infinite; }
+@keyframes pa { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+.cthumb { width: 100%; height: 150px; object-fit: cover; background: var(--bg2); display: block; }
+.cbody { padding: 0.8rem 0.9rem 0.8rem 1.1rem; flex: 1; display: flex; flex-direction: column; }
+.cbadge {
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em;
+  padding: 0.18rem 0.45rem; border-radius: 3px; display: inline-block;
+  margin-bottom: 0.45rem; font-family: 'Courier New', monospace;
+}
+.bn { background: rgba(34,85,204,0.25); color: #5588ff; border: 1px solid rgba(34,85,204,0.35); }
+.br { background: rgba(255,69,0,0.2); color: #ff7744; border: 1px solid rgba(255,69,0,0.3); }
+.bt { background: rgba(255,136,51,0.2); color: #ffaa55; border: 1px solid rgba(255,136,51,0.3); }
+.bs { background: rgba(66,133,244,0.2); color: #6699ff; border: 1px solid rgba(66,133,244,0.3); }
+.ba { background: rgba(255,51,85,0.25); color: #ff5577; border: 1px solid rgba(255,51,85,0.35); }
+.bv { background: rgba(170,68,255,0.2); color: #cc66ff; border: 1px solid rgba(170,68,255,0.3); }
+.bi { background: rgba(0,255,136,0.15); color: #00dd77; border: 1px solid rgba(0,255,136,0.25); }
+.ctit {
+  font-size: 0.88rem; font-weight: 600; color: var(--txt); line-height: 1.42;
+  margin-bottom: 0.45rem; display: -webkit-box;
+  -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.ctit a { color: inherit; text-decoration: none; }
+.ctit a:hover { color: var(--cyan); }
+.cdesc {
+  font-size: 0.76rem; color: var(--muted); display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  flex: 1; margin-bottom: 0.6rem;
+}
+.cfoot {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem;
+  font-size: 0.7rem; color: var(--muted); padding-top: 0.45rem;
+  border-top: 1px solid var(--border); margin-top: auto;
+}
+.csrc { color: var(--cyan); }
+.anomind { margin-left: auto; color: var(--red); font-size: 0.68rem; font-weight: 700; }
+
+/* ---- EMPTY ---- */
+.empty { text-align: center; padding: 4rem 2rem; color: var(--muted); }
+.empty i { font-size: 2.8rem; color: var(--border); margin-bottom: 1rem; display: block; }
+
+/* ---- SCROLLBAR ---- */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+
+/* ---- MISC ---- */
+#app { opacity: 0; transition: opacity 0.7s; }
+.main { padding: 1rem; }
+footer { text-align: center; padding: 1rem; font-size: 0.68rem; color: var(--muted); border-top: 1px solid var(--border); font-family: 'Courier New', monospace; margin-top: 2rem; }
+
+/* ---- ADS ---- */
+.ad-wrap {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden; min-height: 90px;
+  position: relative; margin: 0.75rem 0;
+}
+.ad-wrap::before, .ad-infeed::before {
+  content: 'PUBLICIDADE';
+  position: absolute; top: 4px; right: 8px;
+  font-size: 0.52rem; font-family: 'Courier New', monospace;
+  color: var(--muted); letter-spacing: 0.15em; z-index: 1; pointer-events: none;
+}
+.ad-infeed {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden; min-height: 260px;
+  position: relative; width: 100%;
+}
+.ad-infeed-col { padding: 0.25rem 0.5rem; }
+</style>
+</head>
+<body>
+
+<!-- BOOT SCREEN -->
+<div id="boot">
+  <div class="boot-logo">[ BOOT SCAN ]</div>
+  <div id="blog"></div>
+  <div class="bprog"><div class="bbar" id="bbar"></div></div>
+</div>
+
+<!-- SCAN OVERLAY -->
+<div id="scanover">
+  <div class="scanbox">
+    <div class="ring"></div>
+    <div id="scanmsg">ESCANEANDO REDE GLOBAL...</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header>
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <div>
+        <div class="logo">[ BOOT SCAN ]</div>
+        <div class="logosub">Varredura Global de Conteúdo</div>
+      </div>
+      <div style="font-size:0.78rem; font-family:'Courier New',monospace; display:flex; align-items:center; gap:0.5rem;">
+        <span class="live"></span>
+        <span style="color:var(--green)">ONLINE</span>
+        <span style="color:var(--muted)" id="hclock"></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- AD: BANNER TOPO (leaderboard/responsivo) -->
+  <div style="padding: 0.5rem 1rem 0;">
+    <div class="ad-wrap">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+           data-ad-slot="AAAAAAAAAA"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- SEARCH -->
+    <div class="srch-wrap mb-2">
+      <div class="input-group">
+        <input type="text" id="sinput" placeholder="busque notícias, @perfil_instagram, facebook/perfil — ou deixe vazio para últimas notícias...">
+        <button onclick="doSearch()"><i class="fas fa-search me-1"></i>SCAN</button>
+      </div>
+      <div class="mt-1 d-flex flex-wrap gap-2" style="padding-left:4px">
+        <span class="qtag" onclick="qs('breaking news')">breaking news</span>·
+        <span class="qtag" onclick="qs('terremoto')">terremoto</span>·
+        <span class="qtag" onclick="qs('conflito')">conflito</span>·
+        <span class="qtag" onclick="qs('clima extremo')">clima extremo</span>·
+        <span class="qtag" onclick="qs('tecnologia')">tecnologia</span>·
+        <span class="qtag" onclick="qs('mercado financeiro')">mercado</span>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="sbar mb-2">
+      <span><span class="dot" style="background:#4488ff"></span>Google News: <span class="sv" id="sn">--</span></span>
+      <span><span class="dot" style="background:#ff7744"></span>Reddit: <span class="sv" id="sr">--</span></span>
+      <span><span class="dot" style="background:var(--orange)"></span>HackerNews: <span class="sv" id="sh">--</span></span>
+      <span><span class="dot" style="background:var(--green)"></span>GDELT: <span class="sv" id="sg">--</span></span>
+      <span><span class="dot" style="background:#888"></span>BBC/Reuters: <span class="sv" id="sb">--</span></span>
+      <span style="margin-left:auto"><i class="fas fa-radiation" style="color:var(--red)"></i> Anomalias: <span class="sv" style="color:var(--red)" id="sa">--</span></span>
+    </div>
+
+    <!-- FILTERS -->
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <button class="ftab on" data-f="all"    onclick="sf('all')"><i class="fas fa-globe me-1"></i>TUDO</button>
+      <button class="ftab"    data-f="news"   onclick="sf('news')"><i class="fas fa-newspaper me-1"></i>NOTÍCIAS</button>
+      <button class="ftab"    data-f="reddit" onclick="sf('reddit')"><i class="fab fa-reddit me-1"></i>REDDIT</button>
+      <button class="ftab"    data-f="tech"   onclick="sf('tech')"><i class="fas fa-code me-1"></i>TECH</button>
+      <button class="ftab"    data-f="media"  onclick="sf('media')"><i class="fas fa-photo-video me-1"></i>MÍDIA</button>
+      <button class="ftab"    data-f="social" onclick="sf('social')"><i class="fas fa-users me-1"></i>SOCIAL</button>
+      <button class="ftab"    data-f="anomaly" onclick="sf('anomaly')" style="border-color:rgba(255,51,85,0.4);color:var(--red)">
+        <i class="fas fa-radiation me-1"></i>ANOMALIAS
+      </button>
+    </div>
+
+    <!-- AD: BANNER ENTRE FILTROS E RESULTADOS -->
+    <div class="ad-wrap">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+           data-ad-slot="BBBBBBBBBB"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="row g-3" id="rgrid"></div>
+    <div id="empty" class="empty" style="display:none">
+      <i class="fas fa-satellite-dish"></i>
+      <h6>Nenhum resultado</h6>
+      <p style="font-size:0.82rem">Tente outro termo ou aguarde a varredura</p>
+    </div>
+    <div class="text-center mt-3 mb-2" id="morewrap" style="display:none">
+      <button onclick="loadMore()" style="background:var(--card);border:1px solid var(--border);color:var(--muted);padding:0.5rem 1.5rem;border-radius:6px;cursor:pointer;font-size:0.85rem;">
+        <i class="fas fa-chevron-down me-1"></i>Carregar mais
+      </button>
+    </div>
+  </div>
+
+  <!-- AD: BANNER RODAPÉ -->
+  <div style="padding: 0 1rem;">
+    <div class="ad-wrap">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+           data-ad-slot="CCCCCCCCCC"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+    </div>
+  </div>
+
+  <footer>BOOT SCAN v1.0 &nbsp;::&nbsp; Agregador de Inteligência Global &nbsp;::&nbsp; Dados de fontes abertas em tempo real<br>
+  <span style="color:var(--border)">Nota: scraping de Instagram/Facebook via proxy CORS — perfis privados e conteúdo autenticado não são acessíveis</span>
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<script>
+// ================================================================
+// CONFIG
+// ================================================================
+const PROXY = 'https://api.allorigins.win/get?url=';
+const PROXY2 = 'https://corsproxy.io/?';
+
+const ANOMALY_KW = [
+  'breaking','urgent','alerta','emergência','terremoto','tsunami','guerra','ataque',
+  'explosion','explosão','disaster','desastre','crash','dead','mortos','killed',
+  'evacuate','catástrofe','bomba','atentado','colapso','flooding','flood','enchente',
+  'wildfire','incêndio','drought','seca','famine','epidemic','epidemia','pandemia'
+];
+
+const ST = {
+  all: [], filtered: [], filter: 'all',
+  page: 0, per: 30
+};
+
+// ================================================================
+// UTILS
+// ================================================================
+async function px(url) {
+  try {
+    const r = await fetch(PROXY + encodeURIComponent(url));
+    const j = await r.json();
+    if (!j.contents) throw new Error('empty');
+    return j.contents;
+  } catch {
+    const r2 = await fetch(PROXY2 + encodeURIComponent(url));
+    return r2.text();
+  }
+}
+
+function parseRSS(xml) {
+  try {
+    const doc = new DOMParser().parseFromString(xml, 'text/xml');
+    return Array.from(doc.querySelectorAll('item')).map(el => {
+      const g = s => el.querySelector(s)?.textContent?.trim() || '';
+      const title = g('title');
+      const link  = g('link') || el.querySelector('link')?.getAttribute('href') || '';
+      const desc  = g('description').replace(/<[^>]+>/g,'').trim();
+      const pub   = g('pubDate') || g('dc\\:date') || g('date');
+      let img = el.querySelector('enclosure[type^="image"]')?.getAttribute('url')
+             || el.querySelector('content')?.getAttribute('url')
+             || el.querySelector('thumbnail')?.getAttribute('url')
+             || null;
+      if (!img) {
+        const m = g('description').match(/<img[^>]+src=["']([^"']+)/i);
+        if (m) img = m[1];
+      }
+      return title && link ? { title, link, desc, pub, img } : null;
+    }).filter(Boolean);
+  } catch { return []; }
+}
+
+function ago(d) {
+  if (!d) return '';
+  try {
+    const s = Math.floor((Date.now() - new Date(d)) / 1000);
+    if (s < 60)   return s + 's';
+    if (s < 3600) return Math.floor(s/60) + 'min';
+    if (s < 86400)return Math.floor(s/3600) + 'h';
+    return Math.floor(s/86400) + 'd';
+  } catch { return ''; }
+}
+
+function isAnom(t, d) {
+  const tx = ((t||'') + ' ' + (d||'')).toLowerCase();
+  return ANOMALY_KW.some(k => tx.includes(k));
+}
+
+function clean(s) {
+  return (s||'').replace(/<[^>]+>/g,'')
+    .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+    .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g,' ').trim();
+}
+
+function esc(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function dedup(arr) {
+  const s = new Set();
+  return arr.filter(x => {
+    const k = (x.link||'').split('?')[0] || x.title;
+    return s.has(k) ? false : (s.add(k), true);
+  });
+}
+
+function detectMedia(item) {
+  const u = (item.link||'').toLowerCase();
+  const t = (item.title||'').toLowerCase();
+  if (/\.(jpe?g|png|gif|webp|svg)(\?|$)/.test(u)) return 'image';
+  if (/\.(mp4|webm|mov)(\?|$)/.test(u) || u.includes('youtu') || u.includes('vimeo') || item.isVideo) return 'video';
+  return null;
+}
+
+// ================================================================
+// FETCHERS
+// ================================================================
+async function fGoogleNews(q) {
+  try {
+    const url = q
+      ? `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=pt-BR&gl=BR&ceid=BR:pt-419`
+      : `https://news.google.com/rss?hl=pt-BR&gl=BR&ceid=BR:pt-419`;
+    const xml = await px(url);
+    return parseRSS(xml).map(x => ({ ...x, type:'news', src:'Google News', anom: isAnom(x.title,x.desc) }));
+  } catch { return []; }
+}
+
+async function fBBC(q) {
+  try {
+    const url = q
+      ? `https://feeds.bbci.co.uk/news/world/rss.xml`
+      : `https://feeds.bbci.co.uk/news/world/rss.xml`;
+    const xml = await px(url);
+    const items = parseRSS(xml).map(x => ({ ...x, type:'news', src:'BBC News', anom: isAnom(x.title,x.desc) }));
+    if (q) return items.filter(x => (x.title+x.desc).toLowerCase().includes(q.toLowerCase())).slice(0,10);
+    return items;
+  } catch { return []; }
+}
+
+async function fReuters(q) {
+  try {
+    const url = q
+      ? `https://feeds.reuters.com/reuters/topNews`
+      : `https://feeds.reuters.com/reuters/topNews`;
+    const xml = await px(url);
+    const items = parseRSS(xml).map(x => ({ ...x, type:'news', src:'Reuters', anom: isAnom(x.title,x.desc) }));
+    if (q) return items.filter(x => (x.title+x.desc).toLowerCase().includes(q.toLowerCase())).slice(0,8);
+    return items;
+  } catch { return []; }
+}
+
+async function fReddit(q) {
+  try {
+    const url = q
+      ? `https://www.reddit.com/search.json?q=${encodeURIComponent(q)}&sort=relevance&limit=25&type=link`
+      : `https://www.reddit.com/r/worldnews+news+brasil+technology+science.json?sort=hot&limit=30`;
+    const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const data = await r.json();
+    return (data?.data?.children || []).map(c => {
+      const p = c.data;
+      let img = null;
+      if (p.thumbnail?.startsWith('http')) img = p.thumbnail;
+      if (p.preview?.images?.[0]?.source?.url) img = p.preview.images[0].source.url.replace(/&amp;/g,'&');
+      return {
+        title: p.title,
+        link: p.url || `https://reddit.com${p.permalink}`,
+        desc: p.selftext?.substring(0,200) || `r/${p.subreddit} • ${p.score} pts • ${p.num_comments} comentários`,
+        pub: new Date(p.created_utc * 1000).toISOString(),
+        img,
+        type: 'reddit',
+        src: `r/${p.subreddit}`,
+        score: p.score,
+        comments: p.num_comments,
+        isVideo: p.is_video,
+        postHint: p.post_hint,
+        anom: isAnom(p.title, p.selftext)
+      };
+    });
+  } catch { return []; }
+}
+
+async function fHN(q) {
+  try {
+    if (q) {
+      const r = await fetch(`https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(q)}&tags=story&hitsPerPage=20`);
+      const d = await r.json();
+      return (d.hits||[]).map(h => ({
+        title: h.title, link: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
+        desc: `${h.points||0} pts · ${h.num_comments||0} comentários · ${h.author}`,
+        pub: h.created_at, img: null, type:'tech', src:'HackerNews', score: h.points,
+        anom: isAnom(h.title,'')
+      }));
+    }
+    const ir = await fetch('https://hacker-news.firebaseio.com/v0/topstories.json');
+    const ids = (await ir.json()).slice(0,15);
+    const items = await Promise.all(ids.map(async id => {
+      try {
+        const r = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);
+        const it = await r.json();
+        return { title:it.title, link:it.url||`https://news.ycombinator.com/item?id=${id}`,
+          desc:`${it.score||0} pts · ${it.descendants||0} comentários · ${it.by}`,
+          pub:new Date(it.time*1000).toISOString(), img:null, type:'tech', src:'HackerNews',
+          score:it.score, anom:isAnom(it.title,'') };
+      } catch { return null; }
+    }));
+    return items.filter(Boolean);
+  } catch { return []; }
+}
+
+async function fGDELT(q) {
+  try {
+    const term = q || 'world news';
+    const now  = new Date();
+    const past = new Date(now - 48*3600*1000);
+    const fmt  = d => d.toISOString().replace(/\D/g,'').slice(0,14);
+    const url  = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(term)}&mode=artlist&maxrecords=25&format=json&sort=DateDesc&STARTDATETIME=${fmt(past)}`;
+    const txt  = await px(url);
+    const data = JSON.parse(txt);
+    return (data?.articles||[]).map(a => {
+      const sd = a.seendate||'';
+      const pub = sd.length>=15
+        ? `${sd.slice(0,4)}-${sd.slice(4,6)}-${sd.slice(6,8)}T${sd.slice(9,11)}:${sd.slice(11,13)}:${sd.slice(13,15)}Z`
+        : '';
+      return { title:a.title, link:a.url, desc:`${a.domain} · ${a.sourcecountry||'?'} · ${a.language||''}`,
+        pub, img:a.socialimage||null, type:'news', src:`GDELT·${a.domain}`, anom:isAnom(a.title,'') };
+    });
+  } catch { return []; }
+}
+
+async function fSocial(q) {
+  const name = q.replace(/^@/,'').trim();
+  const results = [];
+
+  // Instagram via proxy
+  try {
+    const html = await px(`https://www.instagram.com/${name}/`);
+    if (html && html.length > 2000) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const title = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || '';
+      const desc  = doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || '';
+      const img   = doc.querySelector('meta[property="og:image"]')?.getAttribute('content') || null;
+      if (title && !title.toLowerCase().includes('instagram') || desc) {
+        results.push({ title:`Instagram: @${name} — ${title.replace(/\s*[·•]\s*Instagram/,'').trim()}`,
+          link:`https://www.instagram.com/${name}/`, desc, img, type:'social', src:'Instagram',
+          pub:new Date().toISOString(), anom:false });
+      }
+    }
+  } catch {}
+
+  // Facebook via proxy
+  try {
+    const html = await px(`https://www.facebook.com/${name}`);
+    if (html && html.length > 2000) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const title = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || '';
+      const desc  = doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || '';
+      const img   = doc.querySelector('meta[property="og:image"]')?.getAttribute('content') || null;
+      if (title && !title.toLowerCase().includes('facebook')) {
+        results.push({ title:`Facebook: ${title}`, link:`https://www.facebook.com/${name}`,
+          desc, img, type:'social', src:'Facebook', pub:new Date().toISOString(), anom:false });
+      }
+    }
+  } catch {}
+
+  // Fallback cards se nada foi encontrado
+  if (results.length === 0) {
+    results.push({
+      title: `Abrir @${name} no Instagram`,
+      link: `https://www.instagram.com/${name}/`,
+      desc: 'Instagram bloqueou acesso direto. Clique para abrir (login pode ser necessário).',
+      img: null, type:'social', src:'Instagram', pub:new Date().toISOString(), anom:false
+    });
+    results.push({
+      title: `Buscar "${name}" no Facebook`,
+      link: `https://www.facebook.com/search/top/?q=${encodeURIComponent(name)}`,
+      desc: 'Facebook bloqueou acesso direto. Clique para buscar no Facebook.',
+      img: null, type:'social', src:'Facebook', pub:new Date().toISOString(), anom:false
+    });
+  }
+  return results;
+}
+
+// ================================================================
+// SEARCH ORCHESTRATOR
+// ================================================================
+async function doSearch() {
+  const q = document.getElementById('sinput').value.trim();
+  ST.page = 0;
+
+  scan(true, 'INICIANDO VARREDURA...');
+  setStat('n','…'); setStat('r','…'); setStat('h','…'); setStat('g','…'); setStat('b','…');
+
+  const isSocial = q.startsWith('@');
+
+  const jobs = [];
+  if (!isSocial) {
+    jobs.push(fGoogleNews(q).then(r => { setStat('n', r.length); return r; }));
+    jobs.push(fBBC(q).then(r => { setStat('b', r.length); return r; }));
+    jobs.push(fReuters(q).then(r => r));
+    jobs.push(fReddit(q).then(r => { setStat('r', r.length); return r; }));
+    jobs.push(fHN(q).then(r => { setStat('h', r.length); return r; }));
+    jobs.push(fGDELT(q).then(r => { setStat('g', r.length); return r; }));
+  }
+  if (isSocial || q) {
+    jobs.push(fSocial(q || '').then(r => r.filter(x => isSocial || x.type === 'social')));
+  }
+
+  scan(true, 'PROCESSANDO DADOS...');
+
+  const settled = await Promise.allSettled(jobs);
+  let combined = [];
+  settled.forEach(r => { if (r.status === 'fulfilled' && Array.isArray(r.value)) combined.push(...r.value); });
+
+  combined = dedup(combined);
+  combined.sort((a,b) => {
+    if (a.anom && !b.anom) return -1;
+    if (!a.anom && b.anom) return 1;
+    return new Date(b.pub||0) - new Date(a.pub||0);
+  });
+
+  ST.all = combined;
+  const anomc = combined.filter(x=>x.anom).length;
+  document.getElementById('sa').textContent = anomc;
+
+  applyF(ST.filter);
+  scan(false);
+}
+
+function qs(t) { document.getElementById('sinput').value = t; doSearch(); }
+
+function scan(on, msg) {
+  document.getElementById('scanover').classList.toggle('on', on);
+  if (msg) document.getElementById('scanmsg').textContent = msg;
+}
+
+function setStat(k, v) {
+  const m = {n:'sn',r:'sr',h:'sh',g:'sg',b:'sb'};
+  const el = document.getElementById(m[k]);
+  if (el) el.textContent = v;
+}
+
+// ================================================================
+// FILTER & RENDER
+// ================================================================
+function sf(f) {
+  ST.filter = f;
+  document.querySelectorAll('.ftab').forEach(t => t.classList.toggle('on', t.dataset.f === f));
+  applyF(f);
+}
+
+function applyF(f) {
+  let list = ST.all;
+  if (f === 'news')   list = list.filter(x => x.type === 'news');
+  if (f === 'reddit') list = list.filter(x => x.type === 'reddit');
+  if (f === 'tech')   list = list.filter(x => x.type === 'tech');
+  if (f === 'media')  list = list.filter(x => x.img || x.isVideo || detectMedia(x));
+  if (f === 'social') list = list.filter(x => x.type === 'social');
+  if (f === 'anomaly')list = list.filter(x => x.anom);
+  ST.filtered = list;
+  ST.page = 0;
+  renderR(list.slice(0, ST.per));
+  document.getElementById('morewrap').style.display = list.length > ST.per ? 'block' : 'none';
+}
+
+function loadMore() {
+  ST.page++;
+  const s = ST.page * ST.per;
+  const more = ST.filtered.slice(s, s + ST.per);
+  if (more.length) {
+    const g = document.getElementById('rgrid');
+    // conta quantos cards já existem para manter a posição do anúncio correta
+    const existingCards = g.querySelectorAll('.col-xl-4, .col-md-6').length;
+    g.insertAdjacentHTML('beforeend', buildGrid(more, existingCards));
+    initAds(g);
+    document.getElementById('morewrap').style.display =
+      ST.filtered.length > (ST.page+1)*ST.per ? 'block' : 'none';
+  }
+}
+
+function renderR(items) {
+  const g = document.getElementById('rgrid');
+  const e = document.getElementById('empty');
+  if (!items.length) { g.innerHTML = ''; e.style.display='block'; return; }
+  e.style.display = 'none';
+  g.innerHTML = buildGrid(items, 0);
+  initAds(g);
+}
+
+// Monta o HTML dos cards intercalando anúncios in-feed a cada 9 itens
+function buildGrid(items, startIdx) {
+  let html = '';
+  items.forEach((it, i) => {
+    html += card(it);
+    // A cada 9 cards insere um bloco de anúncio in-feed (ocupa linha inteira)
+    if ((startIdx + i + 1) % 9 === 0) {
+      html += `<div class="col-12 ad-infeed-col">
+  <div class="ad-infeed">
+    <ins class="adsbygoogle"
+         style="display:block"
+         data-ad-format="fluid"
+         data-ad-layout-key="-fb+5w+4e-db+86"
+         data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+         data-ad-slot="DDDDDDDDDD"></ins>
+  </div>
+</div>`;
+    }
+  });
+  return html;
+}
+
+// Inicializa todos os <ins> do AdSense que ainda não foram ativados
+function initAds(container) {
+  try {
+    (container || document).querySelectorAll('ins.adsbygoogle:not([data-adsbygoogle-status])').forEach(() => {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+    });
+  } catch(e) {}
+}
+
+function card(it) {
+  const mt = detectMedia(it);
+  const isVideo = mt === 'video' || it.isVideo;
+  const isImage = mt === 'image';
+
+  const accent = it.anom ? 'a-anomaly' :
+                 it.type==='reddit' ? 'a-reddit' :
+                 it.type==='tech'   ? 'a-tech'   :
+                 it.type==='social' ? 'a-social'  : 'a-news';
+
+  const badge = it.anom ? ['ba','⚠ ANOMALIA'] :
+                isVideo  ? ['bv','▶ VÍDEO']  :
+                isImage  ? ['bi','◼ IMAGEM']  :
+                it.type==='reddit' ? ['br','REDDIT'] :
+                it.type==='tech'   ? ['bt','TECH']   :
+                it.type==='social' ? ['bs','SOCIAL']  : ['bn','NOTÍCIA'];
+
+  const thumb = it.img
+    ? `<img src="${esc(it.img)}" class="cthumb" alt="" loading="lazy" onerror="this.style.display='none'">`
+    : '';
+
+  const d = clean(it.desc);
+  const t = ago(it.pub);
+
+  const score = it.score != null
+    ? `<span><i class="fas fa-arrow-up" style="color:var(--green);font-size:0.65rem"></i> ${it.score}</span>` : '';
+  const coms  = it.comments != null
+    ? `<span><i class="fas fa-comment" style="font-size:0.65rem"></i> ${it.comments}</span>` : '';
+  const anomTag = it.anom
+    ? `<span class="anomind"><i class="fas fa-radiation"></i> ANOMALIA</span>` : '';
+
+  return `<div class="col-xl-4 col-md-6 col-12">
+  <div class="rcard">
+    <div class="acc ${accent}"></div>
+    ${thumb}
+    <div class="cbody">
+      <span class="cbadge ${badge[0]}">${badge[1]}</span>
+      <div class="ctit"><a href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.title)}</a></div>
+      ${d ? `<div class="cdesc">${esc(d.slice(0,150))}</div>` : ''}
+      <div class="cfoot">
+        <span class="csrc"><i class="fas fa-circle" style="font-size:0.4rem;vertical-align:middle;margin-right:3px"></i>${esc(it.src)}</span>
+        ${t ? `<span><i class="far fa-clock" style="font-size:0.65rem"></i> ${t}</span>` : ''}
+        ${score}${coms}${anomTag}
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
+// ================================================================
+// BOOT SEQUENCE
+// ================================================================
+const BMSGS = [
+  '[SYS ] Carregando Bootstrap 5 + FontAwesome 6...',
+  '[OK  ] Módulos de interface: prontos',
+  '[CORS] Proxy: api.allorigins.win / corsproxy.io (fallback)',
+  '[NOTE] Puppeteer = Node.js apenas — usando Fetch API + CORS proxy',
+  '[SRC ] Google News RSS: conectando...',
+  '[SRC ] BBC World RSS: conectando...',
+  '[SRC ] Reuters RSS: conectando...',
+  '[SRC ] Reddit API (público): conectando...',
+  '[SRC ] HackerNews Firebase API: conectando...',
+  '[SRC ] GDELT Project v2 API: conectando...',
+  '[SRC ] Instagram scraper (proxy): standby',
+  '[SRC ] Facebook scraper (proxy): standby',
+  '[SCAN] Detector de anomalias: ATIVO',
+  '[SCAN] Extrator de mídia: ATIVO',
+  '[BOOT] Sistema pronto. Iniciando varredura global...',
+];
+
+async function runBoot() {
+  const log  = document.getElementById('blog');
+  const bar  = document.getElementById('bbar');
+  for (let i = 0; i < BMSGS.length; i++) {
+    await new Promise(r => setTimeout(r, 120 + Math.random()*80));
+    const ln = document.createElement('div');
+    ln.className = 'bline';
+    ln.style.color = BMSGS[i].startsWith('[BOOT]') ? '#00d4ff' :
+                     BMSGS[i].startsWith('[NOTE]') ? '#ffaa55' : '#00ff88';
+    ln.textContent = BMSGS[i];
+    log.appendChild(ln);
+    bar.style.width = `${((i+1)/BMSGS.length)*100}%`;
+    log.scrollTop = log.scrollHeight;
+  }
+  await new Promise(r => setTimeout(r, 400));
+  document.getElementById('boot').classList.add('out');
+  document.getElementById('app').style.opacity = '1';
+  await new Promise(r => setTimeout(r, 800));
+  document.getElementById('boot').style.display = 'none';
+  doSearch();
+}
+
+// ================================================================
+// INIT
+// ================================================================
+document.addEventListener('DOMContentLoaded', () => {
+  setInterval(() => {
+    document.getElementById('hclock').textContent = new Date().toLocaleTimeString('pt-BR');
+  }, 1000);
+  document.getElementById('sinput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doSearch();
+  });
+  // Inicializa os banners estáticos (topo, filtros, rodapé)
+  initAds(document);
+  runBoot();
+});
+</script>
+</body>
+</html>
