@@ -20,12 +20,12 @@ body{background:var(--bg);color:var(--txt);font-family:'Segoe UI',system-ui,sans
 @keyframes fi{to{opacity:1}}
 .bprog{width:min(580px,90vw);height:3px;background:#111;border-radius:2px;margin-top:1.2rem;overflow:hidden}
 .bbar{height:100%;background:var(--cyan);width:0%;transition:width .15s;box-shadow:0 0 8px var(--cyan)}
-#scanover{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:200}
-#scanover.on{display:flex}
-.ring{width:90px;height:90px;border:3px solid transparent;border-top-color:var(--cyan);border-right-color:var(--cyan);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 1rem;position:relative}
-.ring::after{content:'';position:absolute;inset:6px;border:2px solid transparent;border-top-color:var(--green);border-radius:50%;animation:spin .5s linear infinite reverse}
+/* topbar de progresso — não bloqueia a interface */
+#topbar{position:fixed;top:0;left:0;height:3px;width:0%;background:linear-gradient(90deg,var(--cyan),var(--green));z-index:9998;transition:width .25s ease,opacity .4s ease;box-shadow:0 0 8px var(--cyan);pointer-events:none}
+#topbar.done{opacity:0}
+/* spinner por fonte na stats bar */
+.src-spin{display:inline-block;width:8px;height:8px;border:1.5px solid transparent;border-top-color:var(--cyan);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:2px}
 @keyframes spin{to{transform:rotate(360deg)}}
-#scanmsg{color:var(--cyan);font-size:.85rem;letter-spacing:.12em;margin-top:.5rem}
 #bkmodal{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:500;display:none;align-items:center;justify-content:center;padding:1rem}
 #bkmodal.on{display:flex}
 .bkbox{background:var(--card);border:2px solid var(--red);border-radius:12px;max-width:600px;width:100%;max-height:80vh;overflow-y:auto;padding:1.5rem;box-shadow:0 0 40px rgba(255,51,85,.3)}
@@ -147,6 +147,8 @@ footer{text-align:center;padding:1rem;font-size:.66rem;color:var(--muted);border
   <div class="bprog"><div class="bbar" id="bbar"></div></div>
 </div>
 
+<div id="topbar"></div>
+
 <div id="bkmodal">
   <div class="bkbox">
     <div class="bktitle" id="bktitle">⚡ ANOMALIAS DETECTADAS</div>
@@ -156,12 +158,6 @@ footer{text-align:center;padding:1rem;font-size:.66rem;color:var(--muted);border
   </div>
 </div>
 
-<div id="scanover">
-  <div style="text-align:center;font-family:'Courier New',monospace">
-    <div class="ring"></div>
-    <div id="scanmsg">ESCANEANDO...</div>
-  </div>
-</div>
 
 <div id="app">
   <header>
@@ -426,43 +422,88 @@ function loadWeather(){if(!navigator.geolocation){document.getElementById('weath
 
 async function loadFact(){try{const d=await(await fetch('https://uselessfacts.jsph.pl/api/v2/facts/random?language=en')).json();document.getElementById('facttext').textContent=d.text||'';document.getElementById('factbox').style.display='block'}catch{}}
 
-// SEARCH
-function setStat(k,v){const m={n:'sn',r:'sr',h:'sh',g:'sg',b:'sb'};const el=document.getElementById(m[k]);if(el)el.textContent=v}
-function scan(on,msg){document.getElementById('scanover').classList.toggle('on',on);if(msg)document.getElementById('scanmsg').textContent=msg}
+// SEARCH — carregamento incremental, sem bloquear a interface
+let _searchId = 0; // cancela buscas anteriores se o usuário buscar de novo
 
-async function doSearch(){
+function setStat(k, v, loading=false){
+  const ids={n:'sn',r:'sr',h:'sh',g:'sg',b:'sb'};
+  const el=document.getElementById(ids[k]);
+  if(!el)return;
+  el.innerHTML = loading ? '<span class="src-spin"></span>' : String(v);
+}
+
+function setProgress(pct){
+  const bar=document.getElementById('topbar');
+  bar.classList.remove('done');
+  bar.style.width=Math.min(pct,99)+'%';
+  if(pct>=100){bar.style.width='100%';setTimeout(()=>bar.classList.add('done'),350);setTimeout(()=>{bar.style.width='0%';bar.classList.remove('done')},800)}
+}
+
+function addResults(newItems, searchId){
+  // Descarta resultado de busca antiga se o usuário já buscou outra coisa
+  if(searchId !== _searchId) return;
+  if(!newItems.length) return;
+
+  ST.all = dedup([...ST.all, ...newItems]);
+  ST.all.sort((a,b)=>{if(a.anom&&!b.anom)return-1;if(!a.anom&&b.anom)return 1;return new Date(b.pub||0)-new Date(a.pub||0)});
+
+  document.getElementById('sa').textContent = ST.all.filter(x=>x.anom).length;
+  updateGauge(calcSentiment(ST.all));
+  renderTrending(ST.all);
+  updateTicker(ST.all);
+
+  // Atualiza o grid sem resetar a página — append de itens novos que ainda não estão no DOM
+  applyF(ST.filter, /*soft=*/true);
+}
+
+function doSearch(){
   const q=document.getElementById('sinput').value.trim();
-  ST.page=0;scan(true,'INICIANDO...');
-  setStat('n','…');setStat('r','…');setStat('h','…');setStat('g','…');setStat('b','…');
-  const isSocial=q.startsWith('@'),jobs=[];
+  const sid=++_searchId; // id desta busca
+  ST.all=[];ST.page=0;
+
+  // Limpa grid e mostra empty enquanto carrega
+  document.getElementById('rgrid').innerHTML='';
+  document.getElementById('empty').style.display='none';
+
+  setStat('n','',true);setStat('r','',true);setStat('h','',true);setStat('g','',true);setStat('b','',true);
+  document.getElementById('sa').textContent='--';
+  setProgress(5);
+
+  const isSocial=q.startsWith('@');
+  let done=0;
+  const sources=isSocial?1:7;
+  const tick=()=>{done++;setProgress(Math.round((done/sources)*100))};
+
+  const pipe=(promise, statKey)=>promise.then(r=>{
+    if(statKey) setStat(statKey, r.length);
+    addResults(r, sid);
+    tick();
+    return r;
+  }).catch(()=>{if(statKey) setStat(statKey,'--');tick()});
+
   if(!isSocial){
-    jobs.push(fGoogleNews(q).then(r=>{setStat('n',r.length);return r}));
-    jobs.push(fBBC(q).then(r=>{setStat('b',r.length);return r}));
-    jobs.push(fReuters(q).then(r=>r));
-    jobs.push(fReddit(q).then(r=>{setStat('r',r.length);return r}));
-    jobs.push(fHN(q).then(r=>{setStat('h',r.length);return r}));
-    jobs.push(fGDELT(q).then(r=>{setStat('g',r.length);return r}));
+    pipe(fGoogleNews(q),'n');
+    pipe(fBBC(q),'b');
+    pipe(fReuters(q),null);
+    pipe(fReddit(q),'r');
+    pipe(fHN(q),'h');
+    pipe(fGDELT(q),'g');
   }
-  if(isSocial||q)jobs.push(fSocial(q||'').then(r=>isSocial?r:r.filter(x=>x.type==='social')));
-  scan(true,'PROCESSANDO...');
-  const settled=await Promise.allSettled(jobs);
-  let combined=[];settled.forEach(r=>{if(r.status==='fulfilled'&&Array.isArray(r.value))combined.push(...r.value)});
-  combined=dedup(combined);
-  combined.sort((a,b)=>{if(a.anom&&!b.anom)return-1;if(!a.anom&&b.anom)return 1;return new Date(b.pub||0)-new Date(a.pub||0)});
-  ST.all=combined;
-  const anomc=combined.filter(x=>x.anom).length;
-  document.getElementById('sa').textContent=anomc;
-  updateGauge(calcSentiment(combined));
-  renderTrending(combined);
-  updateTicker(combined);
-  if(anomc>0&&combined.length>5){
-    const top3=combined.filter(x=>x.anom).slice(0,3);
-    document.getElementById('bklist').innerHTML=top3.map(it=>`<div class="bkitem"><a href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.title)}</a><div style="font-size:.63rem;color:var(--muted);margin-top:3px">${esc(it.src)} · ${ago(it.pub)}</div></div>`).join('');
-    setTimeout(()=>document.getElementById('bkmodal').classList.add('on'),700);
+  if(isSocial||q){
+    pipe(fSocial(q||'').then(r=>isSocial?r:r.filter(x=>x.type==='social')), null);
   }
-  applyF(ST.filter);
-  if(ST.filter==='prices'&&q)loadPrices(q);
-  scan(false);
+
+  // Breaking modal — só exibe depois que chegarem resultados suficientes
+  setTimeout(()=>{
+    if(sid!==_searchId)return;
+    const anoms=ST.all.filter(x=>x.anom);
+    if(anoms.length>0&&ST.all.length>5){
+      document.getElementById('bklist').innerHTML=anoms.slice(0,3).map(it=>`<div class="bkitem"><a href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.title)}</a><div style="font-size:.63rem;color:var(--muted);margin-top:3px">${esc(it.src)} · ${ago(it.pub)}</div></div>`).join('');
+      document.getElementById('bkmodal').classList.add('on');
+    }
+  }, 6000);
+
+  if(ST.filter==='prices'&&q) loadPrices(q);
 }
 
 function qs(t){document.getElementById('sinput').value=t;doSearch()}
@@ -478,14 +519,34 @@ function sf(f){
   ST.filter=f;document.querySelectorAll('.ftab').forEach(t=>t.classList.toggle('on',t.dataset.f===f));
   if(f==='prices'){document.getElementById('newsview').style.display='none';document.getElementById('priceview').style.display='block';document.getElementById('morewrap').style.display='none';loadPrices(document.getElementById('sinput').value.trim());return}
   document.getElementById('newsview').style.display='block';document.getElementById('priceview').style.display='none';
+  applyF(f,false);
+}
+
+// soft=true → chamado pelo addResults enquanto ainda carrega, preserva scroll e página atual
+function applyF(f, soft=false){
+  if(f==='prices') return;
   let list=ST.all;
-  if(f==='news')list=list.filter(x=>x.type==='news');
-  if(f==='reddit')list=list.filter(x=>x.type==='reddit');
-  if(f==='tech')list=list.filter(x=>x.type==='tech');
-  if(f==='media')list=list.filter(x=>x.img||x.isVideo||detectMedia(x));
-  if(f==='social')list=list.filter(x=>x.type==='social');
+  if(f==='news')   list=list.filter(x=>x.type==='news');
+  if(f==='reddit') list=list.filter(x=>x.type==='reddit');
+  if(f==='tech')   list=list.filter(x=>x.type==='tech');
+  if(f==='media')  list=list.filter(x=>x.img||x.isVideo||detectMedia(x));
+  if(f==='social') list=list.filter(x=>x.type==='social');
   if(f==='anomaly')list=list.filter(x=>x.anom);
-  ST.filtered=list;ST.page=0;renderR(list.slice(0,ST.per));
+  ST.filtered=list;
+  if(soft){
+    // Só adiciona cards novos que ainda não estão no grid (evita duplicatas visuais)
+    const g=document.getElementById('rgrid');
+    const rendered=new Set(Array.from(g.querySelectorAll('a[href]')).map(a=>a.href));
+    const novos=list.filter(it=>!rendered.has(it.link));
+    if(novos.length){
+      const si=g.querySelectorAll('.col-xl-4,.col-md-6').length;
+      g.insertAdjacentHTML('beforeend',buildGrid(novos,si));
+      initAds(g);
+    }
+    document.getElementById('empty').style.display=list.length?'none':'block';
+  } else {
+    ST.page=0;renderR(list.slice(0,ST.per));
+  }
   document.getElementById('morewrap').style.display=list.length>ST.per?'block':'none';
 }
 
